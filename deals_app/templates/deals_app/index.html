@@ -1,10 +1,62 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+  <meta charset="utf-8">
+  <title>Deals_Manager</title>
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>body{font-family:system-ui;max-width:900px;margin:24px auto}</style>
 </head>
 <body>
-$END$
+  <h1>Deals_Manager</h1>
+  <p id="user">Загрузка пользователя…</p>
+
+  <script>
+    const NGROK_HEADERS = {'ngrok-skip-browser-warning':'true'};
+    const addNgrokBypass = (url) => url + (url.includes('?')?'&':'?') + 'ngrok-skip-browser-warning=1';
+
+    async function postJSON(url, body){
+      return fetch(addNgrokBypass(url), {
+        method: 'POST',
+        credentials: 'include',                 // <-- критично для сессии Django
+        headers: {'Content-Type':'application/json', ...NGROK_HEADERS},
+        body: JSON.stringify(body)
+      });
+    }
+    async function getJSON(url){
+      return fetch(addNgrokBypass(url), {
+        method: 'GET',
+        credentials: 'include',                 // <-- критично для сессии Django
+        headers: {...NGROK_HEADERS}
+      });
+    }
+
+    BX24.init(async function () {
+      try {
+        const auth = BX24.getAuth();           // берём токен из портала
+
+        // 1) сохраняем токен в сессию
+        let r = await postJSON('/api/save-auth/', auth);
+        if (!r.ok) {
+          console.error('save-auth failed', r.status, await r.text());
+          document.getElementById('user').innerText = 'Ошибка авторизации';
+          return;
+        }
+
+        // 2) запрашиваем имя
+        r = await getJSON('/api/user/');
+        const txt = await r.text();
+        let data; try { data = JSON.parse(txt); } catch { console.error('user json parse error:', txt); return; }
+
+        if (data.error) {
+          document.getElementById('user').innerText = 'Не авторизован в Б24 (обновите страницу в портале)';
+        } else {
+          document.getElementById('user').innerText = 'Текущий пользователь: ' + (data.FULL_NAME || '');
+        }
+      } catch (e) {
+        console.error(e);
+        document.getElementById('user').innerText = 'Ошибка загрузки пользователя';
+      }
+    });
+  </script>
 </body>
 </html>
