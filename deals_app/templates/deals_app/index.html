@@ -4,11 +4,36 @@
   <meta charset="utf-8">
   <title>Deals_Manager</title>
   <script src="https://api.bitrix24.com/api/v1/"></script>
-  <style>body{font-family:system-ui;max-width:900px;margin:24px auto}</style>
+  <style>
+    body { font-family: system-ui; max-width: 900px; margin: 24px auto; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 6px; }
+    form { margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    input, button { margin: 5px 0; padding: 5px; }
+  </style>
 </head>
 <body>
   <h1>Deals_Manager</h1>
   <p id="user">Загрузка пользователя…</p>
+
+  <h2>Мои последние сделки</h2>
+  <ul id="deals">
+    <li>Загрузка...</li>
+  </ul>
+
+  <h2>Создать сделку</h2>
+  <form id="dealForm">
+    <label>Название сделки:<br>
+      <input type="text" id="dealTitle" required>
+    </label><br>
+    <label>Сумма:<br>
+      <input type="number" id="dealSum">
+    </label><br>
+    <label>Комментарий клиента:<br>
+      <input type="text" id="dealCustom">
+    </label><br>
+    <button type="submit">Создать</button>
+  </form>
 
   <script>
     const NGROK_HEADERS = {'ngrok-skip-browser-warning':'true'};
@@ -17,7 +42,7 @@
     async function postJSON(url, body){
       return fetch(addNgrokBypass(url), {
         method: 'POST',
-        credentials: 'include',                 // <-- критично для сессии Django
+        credentials: 'include',
         headers: {'Content-Type':'application/json', ...NGROK_HEADERS},
         body: JSON.stringify(body)
       });
@@ -25,16 +50,16 @@
     async function getJSON(url){
       return fetch(addNgrokBypass(url), {
         method: 'GET',
-        credentials: 'include',                 // <-- критично для сессии Django
+        credentials: 'include',
         headers: {...NGROK_HEADERS}
       });
     }
 
     BX24.init(async function () {
       try {
-        const auth = BX24.getAuth();           // берём токен из портала
+        const auth = BX24.getAuth();
 
-        // 1) сохраняем токен в сессию
+        // 1) сохраняем токен
         let r = await postJSON('/api/save-auth/', auth);
         if (!r.ok) {
           console.error('save-auth failed', r.status, await r.text());
@@ -42,21 +67,68 @@
           return;
         }
 
-        // 2) запрашиваем имя
+        // 2) имя пользователя
         r = await getJSON('/api/user/');
-        const txt = await r.text();
+        let txt = await r.text();
         let data; try { data = JSON.parse(txt); } catch { console.error('user json parse error:', txt); return; }
 
         if (data.error) {
-          document.getElementById('user').innerText = 'Не авторизован в Б24 (обновите страницу в портале)';
+          document.getElementById('user').innerText = 'Не авторизован в Б24';
         } else {
           document.getElementById('user').innerText = 'Текущий пользователь: ' + (data.FULL_NAME || '');
         }
+
+        // 3) 10 последних сделок
+        loadDeals();
+
+        // 4) обработка формы
+        document.getElementById('dealForm').addEventListener('submit', async function(e){
+          e.preventDefault();
+          const title = document.getElementById('dealTitle').value;
+          const sum = document.getElementById('dealSum').value;
+          const custom = document.getElementById('dealCustom').value;
+
+          const resp = await postJSON('/api/deal-create/', {
+            title: title,
+            sum: sum,
+            UF_CRM_1755174858: custom
+          });
+
+          const resTxt = await resp.text();
+          let res; try { res = JSON.parse(resTxt); } catch { console.error('create json parse error:', resTxt); return; }
+
+          if (res.ok) {
+            alert('Сделка создана!');
+            document.getElementById('dealForm').reset();
+            loadDeals();
+          } else {
+            alert('Ошибка: ' + (res.error || 'Не удалось создать сделку'));
+          }
+        });
+
       } catch (e) {
         console.error(e);
         document.getElementById('user').innerText = 'Ошибка загрузки пользователя';
       }
     });
+
+    async function loadDeals(){
+      const r = await getJSON('/api/deals/');
+      const txt = await r.text();
+      let deals; try { deals = JSON.parse(txt); } catch { console.error('deals json parse error:', txt); return; }
+
+      const ul = document.getElementById('deals');
+      ul.innerHTML = '';
+      if (!deals.length) {
+        ul.innerHTML = '<li>Сделок не найдено</li>';
+      } else {
+        deals.forEach(d => {
+          const li = document.createElement('li');
+          li.textContent = `${d.TITLE} (стадия: ${d.STAGE_ID})`;
+          ul.appendChild(li);
+        });
+      }
+    }
   </script>
 </body>
 </html>
