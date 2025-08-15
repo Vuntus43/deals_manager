@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Deals_Manager — Создать сделку</title>
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>
+    body { font-family: system-ui; max-width: 900px; margin: 24px auto; }
+    nav a { margin-right: 12px; }
+    form { margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    input, button { margin: 5px 0; padding: 5px; }
+    .muted { color:#777; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/?ngrok-skip-browser-warning=1">Главная</a>
+  <a href="/deals/?ngrok-skip-browser-warning=1">Последние сделки</a>
+  <a href="/create/?ngrok-skip-browser-warning=1">Создать сделку</a>
+</nav>
+  <hr>
+
+  <h1>Создать сделку</h1>
+  <form id="dealForm">
+    <label>Название сделки:<br>
+      <input type="text" id="dealTitle" required>
+    </label><br>
+    <label>Сумма:<br>
+      <input type="number" id="dealSum" step="0.01">
+    </label><br>
+    <label>Комментарий клиента:<br>
+      <input type="text" id="dealCustom">
+    </label><br>
+    <button type="submit">Создать</button>
+  </form>
+  <p id="status" class="muted"></p>
+
+  <script>
+    const NGROK_HEADERS={'ngrok-skip-browser-warning':'true'};
+    const addNgrok=(u)=>u+(u.includes('?')?'&':'?')+'ngrok-skip-browser-warning=1';
+    const postJSON=(u,b)=>fetch(addNgrok(u),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...NGROK_HEADERS},body:JSON.stringify(b)});
+
+    BX24.init(async function () {
+      try{
+        let r = await postJSON('/api/save-auth/', BX24.getAuth());
+        if(!r.ok){ document.getElementById('status').innerText='Ошибка авторизации'; return; }
+
+        document.getElementById('dealForm').addEventListener('submit', async function(e){
+          e.preventDefault();
+          const title  = document.getElementById('dealTitle').value.trim();
+          const sum    = document.getElementById('dealSum').value;
+          const custom = document.getElementById('dealCustom').value.trim();
+
+          document.getElementById('status').innerText = 'Создаём…';
+
+          const resp = await postJSON('/api/deal-create/', {
+            title: title,
+            sum: sum,
+            UF_CRM_1755174858: custom
+          });
+
+          const text = await resp.text();
+          let res; try{ res = JSON.parse(text); } catch{ document.getElementById('status').innerText='Ошибка ответа'; return; }
+
+          if(res.ok){
+            document.getElementById('status').innerText = 'Сделка создана: ID ' + res.result;
+            e.target.reset();
+          }else{
+            document.getElementById('status').innerText = 'Ошибка: ' + (res.error_description || res.error || 'неизвестно');
+          }
+        });
+
+      }catch(e){
+        console.error(e);
+        document.getElementById('status').innerText='Ошибка инициализации';
+      }
+    });
+  </script>
+</body>
+</html>

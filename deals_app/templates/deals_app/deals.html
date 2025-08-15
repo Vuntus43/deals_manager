@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Deals_Manager — Последние сделки</title>
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>
+    body { font-family: system-ui; max-width: 900px; margin: 24px auto; }
+    nav a { margin-right: 12px; }
+    ul { padding-left: 20px; } li { margin-bottom: 8px; }
+    .muted { color:#777; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/?ngrok-skip-browser-warning=1">Главная</a>
+    <a href="/deals/?ngrok-skip-browser-warning=1">Последние сделки</a>
+    <a href="/create/?ngrok-skip-browser-warning=1">Создать сделку</a>
+  </nav>
+  <hr>
+
+  <h1>Мои последние сделки</h1>
+  <ul id="deals"><li class="muted">Загрузка…</li></ul>
+
+  <script>
+    const NGROK_HEADERS={'ngrok-skip-browser-warning':'true'};
+    const addNgrok=(u)=>u+(u.includes('?')?'&':'?')+'ngrok-skip-browser-warning=1';
+    const postJSON=(u,b)=>fetch(addNgrok(u),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...NGROK_HEADERS},body:JSON.stringify(b)});
+    const getJSON =(u)=>fetch(addNgrok(u),{method:'GET', credentials:'include', headers:{...NGROK_HEADERS}});
+
+    async function loadDeals(){
+      const ul = document.getElementById('deals');
+      const r  = await getJSON('/api/deals/');
+      const txt = await r.text();
+      let deals; try { deals = JSON.parse(txt); } catch { ul.innerHTML='<li>Ошибка ответа</li>'; return; }
+
+      ul.innerHTML = '';
+      if(!deals.length){
+        ul.innerHTML = '<li>Сделок не найдено</li>';
+        return;
+      }
+
+      deals.forEach(d=>{
+        const li = document.createElement('li');
+        const sum = (d.OPPORTUNITY ?? 0).toFixed ? d.OPPORTUNITY.toFixed(2) : d.OPPORTUNITY;
+        const comment = d.UF_CRM_1755174858 ? ` — Комментарий: ${d.UF_CRM_1755174858}` : '';
+        li.textContent = `${d.TITLE} (стадия: ${d.STAGE_ID}, сумма: ${sum})${comment}`;
+        ul.appendChild(li);
+      });
+    }
+
+    BX24.init(async function () {
+      try{
+        // сохраняем токен, чтобы Django-сессия знала пользователя
+        let r = await postJSON('/api/save-auth/', BX24.getAuth());
+        if(!r.ok){ document.getElementById('deals').innerHTML = '<li>Ошибка авторизации</li>'; return; }
+        await loadDeals();
+      }catch(e){
+        console.error(e);
+        document.getElementById('deals').innerHTML = '<li>Ошибка загрузки</li>';
+      }
+    });
+  </script>
+</body>
+</html>

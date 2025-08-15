@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Deals_Manager — Главная</title>
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>
+    body { font-family: system-ui; max-width: 900px; margin: 24px auto; }
+    nav a { margin-right: 12px; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/?ngrok-skip-browser-warning=1">Главная</a>
+  <a href="/deals/?ngrok-skip-browser-warning=1">Последние сделки</a>
+  <a href="/create/?ngrok-skip-browser-warning=1">Создать сделку</a>
+</nav>
+  <hr>
+
+  <h1>Deals_Manager — Главная</h1>
+  <p id="user">Загрузка пользователя…</p>
+
+  <script>
+    const NGROK_HEADERS={'ngrok-skip-browser-warning':'true'};
+    const addNgrok=(u)=>u+(u.includes('?')?'&':'?')+'ngrok-skip-browser-warning=1';
+    const postJSON=(u,b)=>fetch(addNgrok(u),{method:'POST',credentials:'include',headers:{'Content-Type':'application/json',...NGROK_HEADERS},body:JSON.stringify(b)});
+    const getJSON =(u)=>fetch(addNgrok(u),{method:'GET', credentials:'include', headers:{...NGROK_HEADERS}});
+
+    BX24.init(async function () {
+      try{
+        let r = await postJSON('/api/save-auth/', BX24.getAuth());
+        if(!r.ok){ document.getElementById('user').innerText='Ошибка авторизации'; return; }
+
+        r = await getJSON('/api/user/');
+        const txt = await r.text();
+        let data; try{ data = JSON.parse(txt); } catch{ document.getElementById('user').innerText='Ошибка ответа'; return; }
+
+        document.getElementById('user').innerText =
+          data.error ? 'Не авторизован в Б24' : ('Текущий пользователь: ' + (data.FULL_NAME||''));
+      }catch(e){
+        console.error(e);
+        document.getElementById('user').innerText='Ошибка загрузки пользователя';
+      }
+    });
+  </script>
+</body>
+</html>
